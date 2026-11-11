@@ -1,15 +1,12 @@
 # MyTube
 
-A minimal YouTube search page: a password screen, a search bar, and a plain-text list of results.
-No thumbnails, recommendations, Shorts or comments.
+A minimal YouTube search page: a password screen, a search bar, and a plain-text list of results. Uses **YouTube Data API v3** API.
 
 ## Features
 
 **Password screen**
 - The site opens on a password prompt. Search isn't available until you unlock it.
 - The default password is `i confirm that i need to use youtube right now`. It isn't case-sensitive, and extra spaces are ignored.
-- Once you unlock it, the site stays open for 5 minutes in that browser, then asks again. The next search after that brings the prompt back, and the search runs once you unlock.
-- The password is checked on the server, so searches can't skip it by calling the API directly.
 
 **Search**
 - Each result shows the channel, publish date, length (or "Live"), title and description.
@@ -25,40 +22,6 @@ No thumbnails, recommendations, Shorts or comments.
 - Cmd-click or Ctrl-click a title to open it on YouTube instead. Videos that can't be embedded always open on YouTube.
 - Press Esc, click **Close**, or click outside the player to close it.
 
-## Setup
-
-### 1. Get a YouTube API key (about 5 minutes)
-
-1. Go to https://console.cloud.google.com/ and create a project.
-2. Go to **APIs & Services → Library**, find **YouTube Data API v3** and click **Enable**.
-3. Go to **APIs & Services → Credentials**, click **Create credentials → API key**, and copy the key.
-4. Optional but recommended: edit the key and, under **API restrictions**, allow only YouTube Data API v3.
-
-Quota: the free tier gives 10,000 units a day. Each search, including each "More results", costs about 101 units, so you get roughly 100 searches a day.
-Repeating a search within an hour is served from your browser's cache and costs nothing.
-
-### 2. Run it locally
-
-You need Node 18 or newer. There are no dependencies to install.
-
-```sh
-cd mytube                 # the project folder
-cp .env.example .env      # then open .env and replace paste-your-key-here with your key
-npm start                 # open http://localhost:3000
-```
-
-Restart `npm start` (Ctrl+C, then run it again) after editing `.env` or anything in `api/`.
-
-### 3. Deploy to Vercel (free)
-
-```sh
-npm i -g vercel
-vercel                                                     # first time: accept the default settings
-vercel env add YOUTUBE_API_KEY --environment production    # choose Secret, then paste your key
-vercel --prod
-```
-
-Your local `.env` isn't uploaded, so the key has to be added to Vercel separately, as above.
 
 ## Changing the password or unlock time
 
@@ -68,7 +31,6 @@ Both are in [`api/_auth.js`](api/_auth.js):
   `vercel env add SITE_PASSWORD --environment production`. Using the variable keeps the real password out of the code if this repo is ever public.
 - `SESSION_SECONDS` is how long the site stays unlocked. It's currently `60 * 5`, which is 5 minutes.
 
-Changing the password locks every browser that's currently unlocked.
 
 ## How it works
 
