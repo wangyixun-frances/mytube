@@ -3,7 +3,7 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 
 // Case-insensitive; extra spaces are ignored. Override with the SITE_PASSWORD env var.
 const PASSWORD = process.env.SITE_PASSWORD || 'i confirm that i need to use youtube right now';
-const SESSION_SECONDS = 60 * 5; // stay unlocked for 5 mins
+const SESSION_SECONDS = 60 * 10; // stay unlocked for 10 mins
 const COOKIE = 'mytube_session';
 
 const normalize = (s) => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();

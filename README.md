@@ -1,6 +1,6 @@
 # MyTube
 
-A minimal YouTube search page: a password screen, a search bar, and a plain-text list of results. Uses **YouTube Data API v3** API.
+A minimal YouTube search page: a password screen, a search bar, and a plain-text list of results. Uses **YouTube Data API v3**.
 
 ## Features
 
@@ -11,7 +11,8 @@ A minimal YouTube search page: a password screen, a search bar, and a plain-text
 **Search**
 - Each result shows the channel, publish date, length (or "Live"), title and description.
 - Long descriptions are cut to two lines. Click **Show full description** to expand one. Links in descriptions can be clicked.
-- **More results** at the bottom loads the next 20.
+- **YouTube Shorts are removed.** The API doesn't label Shorts, so any video up to 3 minutes long that is vertical or square, or tagged `#shorts`, is left out. Each search fetches 50 videos (for the same quota as 20) so there are still plenty left after filtering.
+- **More results** at the bottom loads the next batch.
 - **latest** sorts the loaded results from newest to oldest. Click it again for YouTube's original order. It stays on for new searches and "More results".
 - **clear** empties the search box and the results and returns to the blank start page.
 - Searches are saved in the address bar (`?q=...`), so the back button and bookmarks work.
