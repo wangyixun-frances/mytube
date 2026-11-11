@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MyTube</title>
+<style>
+  :root {
+    --bg: #0e0f11;
+    --surface: #17181b;
+    --border: #2a2c31;
+    --text: #e3e3e6;
+    --muted: #8d9099;
+    --link: #8ab4f8;
+    --visited: #c58af9;
+    --focus: #5b8def;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+  }
+
+  /* Search bar: centered on an empty page, docks to top once results exist */
+  header {
+    display: flex; justify-content: center;
+    padding: 0 16px;
+    transition: padding .25s ease;
+    padding-top: 38vh;
+  }
+  body.has-results header {
+    padding-top: 20px; padding-bottom: 16px;
+    position: sticky; top: 0; background: var(--bg);
+    border-bottom: 1px solid var(--border); z-index: 5;
+  }
+  form { width: 100%; max-width: 680px; display: flex; gap: 8px; align-items: center; }
+  #q, #pw {
+    flex: 1; min-width: 0; padding: 13px 20px;
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--border); border-radius: 999px;
+    font: inherit; font-size: 16px; outline: none;
+  }
+  #q:focus, #pw:focus { border-color: var(--focus); }
+  #q::-webkit-search-cancel-button { filter: invert(.6); }
+
+  /* Lock screen. Nothing shows until the session check finishes. */
+  body.checking header, body.checking main, body.checking #lock,
+  body.locked header, body.locked main,
+  body:not(.locked) #lock { display: none; }
+  #lock { display: flex; flex-direction: column; align-items: center; padding: 38vh 16px 0; }
+  #lock form { display: block; }
+  #pw { width: 100%; }
+  #lockmsg { color: #f28b82; font-size: 13px; min-height: 20px; margin-top: 10px; }
+
+  main { max-width: 680px; margin: 0 auto; padding: 8px 16px 80px; }
+  #status { color: var(--muted); padding: 16px 0; }
+  #status.error { color: #f28b82; }
+  #status:empty { display: none; }
+
+  ol { list-style: none; margin: 0; padding: 0; }
+  li { padding: 18px 0; border-bottom: 1px solid var(--border); }
+  li:last-child { border-bottom: 0; }
+
+  .meta { color: var(--muted); font-size: 13px; }
+  .meta span + span::before { content: " · "; }
+  .title {
+    display: inline-block; margin: 2px 0 4px;
+    font-size: 18px; line-height: 1.35;
+    color: var(--link); text-decoration: none;
+  }
+  .title:visited { color: var(--visited); }
+  .title:hover { text-decoration: underline; }
+
+  .desc {
+    color: #bdc1c6; white-space: pre-wrap; overflow-wrap: anywhere;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .desc.open { display: block; }
+  .desc a { color: var(--link); }
+  .desc:empty::before { content: "No description."; color: var(--muted); font-style: italic; }
+
+  #clear, #latest {
+    background: none; border: 1px solid var(--border); border-radius: 999px;
+    padding: 8px 14px; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer;
+  }
+  #clear:hover, #latest:hover { color: var(--text); }
+  #latest[aria-pressed="true"] { color: var(--text); border-color: var(--focus); }
+
+  .toggle, #more {
+    background: none; border: 0; padding: 0; margin-top: 4px;
+    color: var(--muted); font: inherit; font-size: 13px; cursor: pointer;
+  }
+  .toggle:hover, #more:hover { color: var(--text); }
+  #more { display: block; margin: 24px auto 0; padding: 8px 18px;
+    border: 1px solid var(--border); border-radius: 999px; }
+
+  /* Player */
+  dialog {
+    width: min(960px, calc(100vw - 32px)); padding: 0;
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--border); border-radius: 12px;
+  }
+  dialog::backdrop { background: rgba(0,0,0,.85); }
+  .frame { aspect-ratio: 16 / 9; background: #000; }
+  .frame iframe { width: 100%; height: 100%; border: 0; display: block; }
+  .bar { display: flex; gap: 16px; align-items: center; padding: 12px 16px; }
+  .bar strong { flex: 1; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar a, .bar button { color: var(--muted); font: inherit; font-size: 13px;
+    background: none; border: 0; cursor: pointer; text-decoration: none; white-space: nowrap; }
+  .bar a:hover, .bar button:hover { color: var(--text); }
+</style>
+</head>
+<body class="checking">
+  <section id="lock">
+    <form id="unlock">
+      <input id="pw" type="text" placeholder="Password" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Password">
+    </form>
+    <div id="lockmsg" aria-live="polite"></div>
+  </section>
+
+  <header>
+    <form id="search" role="search">
+      <input id="q" type="search" placeholder="Search" autocomplete="off" aria-label="Search YouTube">
+      <button id="latest" type="button" aria-pressed="false" title="Sort newest first">latest</button>
+      <button id="clear" type="button">clear</button>
+    </form>
+  </header>
+
+  <main>
+    <div id="status" aria-live="polite"></div>
+    <ol id="results"></ol>
+    <button id="more" hidden>More results</button>
+  </main>
+
+  <dialog id="player">
+    <div class="frame"><iframe id="frame" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div>
+    <div class="bar">
+      <strong id="ptitle"></strong>
+      <a id="plink" target="_blank" rel="noopener">Open on YouTube ↗</a>
+      <button id="pclose">Close (Esc)</button>
+    </div>
+  </dialog>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const form = $('#search'), input = $('#q'), list = $('#results'), statusEl = $('#status'), moreBtn = $('#more');
+const player = $('#player'), frame = $('#frame');
+
+let query = '', nextToken = null, seq = 0;
+let items = [];       // { v, node } in the order YouTube returned them
+let latest = false;   // sort newest first?
+const latestBtn = $('#latest');
+
+// ---------- search ----------
+form.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const q = input.value.trim();
+  if (!q) return;
+  history.pushState(null, '', '?q=' + encodeURIComponent(q));
+  search(q);
+});
+
+window.addEventListener('popstate', loadFromURL);
+moreBtn.addEventListener('click', () => search(query, nextToken));
+$('#clear').addEventListener('click', () => {
+  if (location.search) history.pushState(null, '', location.pathname);
+  seq++; // ignore any search still in flight
+  setLatest(false);
+  loadFromURL();
+  document.title = 'MyTube';
+  input.focus();
+});
+
+function loadFromURL() {
+  const q = new URLSearchParams(location.search).get('q') || '';
+  input.value = q;
+  if (q) search(q);
+  else { document.body.classList.remove('has-results'); list.innerHTML = ''; items = []; setStatus(''); moreBtn.hidden = true; }
+}
+
+async function search(q, pageToken = null) {
+  const id = ++seq;
+  document.body.classList.add('has-results');
+  document.title = q + ' – MyTube';
+  if (!pageToken) { query = q; list.innerHTML = ''; items = []; window.scrollTo(0, 0); }
+  moreBtn.hidden = true;
+  setStatus('Searching…');
+
+  try {
+    const p = new URLSearchParams({ q });
+    if (pageToken) p.set('pageToken', pageToken);
+    const r = await fetch('/api/search?' + p);
+    const data = await r.json();
+    if (id !== seq) return; // a newer search started
+    if (data.locked) { setStatus(''); return lock(); }
+    if (!r.ok) throw new Error(data.error || 'Request failed');
+
+    nextToken = data.nextPageToken;
+    data.results.forEach((v) => items.push({ v, node: renderItem(v) }));
+    arrange();
+    markClamped();
+    setStatus(list.children.length ? '' : 'No results.');
+    moreBtn.hidden = !nextToken;
+  } catch (err) {
+    if (id === seq) setStatus(err.message, true);
+  }
+}
+
+// Put the result rows in order. Moving existing rows keeps expanded descriptions open.
+function arrange() {
+  const order = latest
+    ? [...items].sort((a, b) => b.v.publishedAt.localeCompare(a.v.publishedAt))
+    : items;
+  list.append(...order.map((x) => x.node));
+}
+
+function setLatest(on) {
+  latest = on;
+  latestBtn.setAttribute('aria-pressed', String(on));
+  arrange();
+}
+latestBtn.addEventListener('click', () => setLatest(!latest));
+
+function setStatus(text, isError = false) {
+  statusEl.textContent = text;
+  statusEl.classList.toggle('error', isError);
+}
+
+// ---------- rendering ----------
+function el(tag, props = {}, ...children) {
+  const n = Object.assign(document.createElement(tag), props);
+  n.append(...children);
+  return n;
+}
+
+function renderItem(v) {
+  const url = 'https://www.youtube.com/watch?v=' + v.id;
+  const meta = el('div', { className: 'meta' },
+    el('span', { textContent: v.channel }),
+    el('span', { textContent: formatDate(v.publishedAt) }),
+    ...(v.live ? [el('span', { textContent: 'Live' })] : v.duration ? [el('span', { textContent: formatDuration(v.duration) })] : [])
+  );
+
+  const title = el('a', { className: 'title', href: url, textContent: v.title, target: '_blank', rel: 'noopener' });
+  title.addEventListener('click', (e) => {
+    // Plain click → in-page player. Cmd/Ctrl/middle-click → YouTube as usual.
+    if (!v.embeddable || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    openPlayer(v, url);
+  });
+
+  const desc = el('div', { className: 'desc' }, ...linkify(v.description));
+  const toggle = el('button', { className: 'toggle', textContent: 'Show full description', hidden: true });
+  toggle.addEventListener('click', () => {
+    const open = desc.classList.toggle('open');
+    toggle.textContent = open ? 'Show less' : 'Show full description';
+  });
+
+  return el('li', {}, meta, title, desc, toggle);
+}
+
+// Only show the toggle when the description is actually clipped.
+function markClamped() {
+  requestAnimationFrame(() => {
+    list.querySelectorAll('.desc:not(.open)').forEach((d) => {
+      d.nextElementSibling.hidden = d.scrollHeight <= d.clientHeight + 1;
+    });
+  });
+}
+
+function linkify(text) {
+  const parts = text.split(/(https?:\/\/[^\s<>"]+)/g);
+  return parts.map((p, i) =>
+    i % 2 ? el('a', { href: p, textContent: p, target: '_blank', rel: 'noopener noreferrer' }) : document.createTextNode(p)
+  );
+}
+
+function formatDate(iso) {
+  return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function formatDuration(iso) {
+  const m = iso.match(/P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!m) return '';
+  const [, d = 0, h = 0, min = 0, s = 0] = m.map((x) => (x === undefined ? 0 : x));
+  const hours = +d * 24 + +h;
+  const pad = (n) => String(n).padStart(2, '0');
+  return hours ? `${hours}:${pad(min)}:${pad(s)}` : `${+min}:${pad(s)}`;
+}
+
+// ---------- player ----------
+function openPlayer(v, url) {
+  frame.src = `https://www.youtube-nocookie.com/embed/${v.id}?autoplay=1&rel=0&playsinline=1`;
+  $('#ptitle').textContent = v.title;
+  $('#plink').href = url;
+  player.showModal();
+}
+player.addEventListener('close', () => { frame.src = 'about:blank'; });
+$('#pclose').addEventListener('click', () => player.close());
+player.addEventListener('click', (e) => { if (e.target === player) player.close(); });
+
+// "/" focuses the search bar
+document.addEventListener('keydown', (e) => {
+  if (e.key === '/' && document.activeElement !== input && !player.open && !document.body.matches('.locked, .checking')) {
+    e.preventDefault(); input.focus(); input.select();
+  }
+});
+
+// ---------- lock screen ----------
+const pw = $('#pw'), lockmsg = $('#lockmsg');
+
+function lock() {
+  document.body.classList.remove('checking');
+  document.body.classList.add('locked');
+  pw.value = '';
+  pw.focus();
+}
+
+function unlock() {
+  document.body.classList.remove('checking', 'locked');
+  lockmsg.textContent = '';
+  loadFromURL();
+  input.focus();
+}
+
+$('#unlock').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!pw.value.trim()) return;
+  lockmsg.textContent = '';
+  pw.disabled = true;
+  try {
+    const r = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw.value }),
+    });
+    if (r.ok) return unlock();
+    lockmsg.textContent = (await r.json().catch(() => ({}))).error || 'Wrong password.';
+  } catch {
+    lockmsg.textContent = 'Could not reach the server.';
+  } finally {
+    pw.disabled = false;
+    if (document.body.classList.contains('locked')) { pw.select(); pw.focus(); }
+  }
+});
+
+window.addEventListener('resize', markClamped);
+fetch('/api/login')
+  .then((r) => r.json())
+  .then((d) => (d.authed ? unlock() : lock()))
+  .catch(lock);
+</script>
+</body>
+</html>
